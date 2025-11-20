@@ -7,7 +7,7 @@ import numpy as np
 import numpy.typing as npt
 from sklearn.tree import DecisionTreeRegressor
 
-from .utils import ConvergenceHistory
+from .utils import ConvergenceHistory, rmsle, whether_to_stop
 
 
 class RandomForestMSE:
@@ -17,11 +17,14 @@ class RandomForestMSE:
         """
         Handmade random forest regressor.
 
-        Classic ML algorithm that trains a set of independent tall decision trees and averages its predictions. Employs scikit-learn `DecisionTreeRegressor` under the hood.
+        Classic ML algorithm that trains a set of independent tall decision
+        trees and averages its predictions.
+        Employs scikit-learn `DecisionTreeRegressor` under the hood.
 
         Args:
             n_estimators (int): Number of trees in the forest.
-            tree_params (dict[str, Any] | None, optional): Parameters for sklearn trees. Defaults to None.
+            tree_params (dict[str, Any] | None, optional):
+            Parameters for sklearn trees. Defaults to None.
         """
         self.n_estimators = n_estimators
         if tree_params is None:
@@ -29,6 +32,18 @@ class RandomForestMSE:
         self.forest = [
             DecisionTreeRegressor(**tree_params) for _ in range(n_estimators)
         ]
+        self._indices = []
+        self._is_fitted = False
+        self._n_fitted_estimators = 0
+
+    def _get_bootstrap_sample(self, X, y):
+        indices = np.random.choice(X.shape[0], X.shape[0], replace=True)
+        return X[indices], y[indices]
+
+    def _get_random_features(self, n_features):
+        k = max(1, np.floor(n_features / 3))
+        feature_indices = np.random.choice(n_features, k, replace=False)
+        return feature_indices
 
     def fit(
         self,
@@ -53,8 +68,45 @@ class RandomForestMSE:
         Returns:
             ConvergenceHistory | None: Instance of `ConvergenceHistory` if `trace=True` or if validation data is provided.
         """
-        
-        ...
+        validation = None
+        if (X_val is not None and y_val is not None):
+            validation = True
+
+        if trace is None:
+            trace = validation
+
+        if trace:
+            history = ConvergenceHistory()
+
+        n_features = X.shape[1]
+
+        for i in range(self.n_estimators):
+
+            X_bootstrap, y_bootstrap = self._get_bootstrap_sample(X, y)
+            feature_indices = self._get_random_features(n_features)
+            self._indices.append(feature_indices)
+            self.forest[i].fit(X_bootstrap[:, feature_indices],
+                               y_bootstrap)
+            self._n_fitted_estimators += 1
+
+            if trace:
+                y_pred_train = self.predict(X)
+                train_loss = rmsle(y, y_pred_train)
+                history.train.append(train_loss)
+
+                if validation:
+                    y_pred_val = self.predict(X_val)
+                    val_loss = rmsle(y, y_pred_val)
+                    history.val.append(val_loss)
+
+                if patience is not None:
+                    if whether_to_stop(history, patience):
+                        self.n_estimators = self._n_fitted_estimators
+                        break
+
+        self._is_fitted = True
+        if trace:
+            return history
 
     def predict(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
@@ -68,8 +120,17 @@ class RandomForestMSE:
         Returns:
             npt.NDArray[np.float64]: Predicted values, array of shape (n_objects,).
         """
-        
-        ...
+        predictions = []
+        if not self._is_fitted: 
+            n_estimators = self._n_fitted_estimators
+        else:
+            n_estimators = self.n_estimators
+
+        for i in range(n_estimators):
+            yi_pred = self.forest[i].predict(X[:, self._indices[i]])
+            predictions.append(yi_pred)
+
+        return np.mean(np.array(predictions), axis=0)
 
     def dump(self, dirpath: str) -> None:
         """
