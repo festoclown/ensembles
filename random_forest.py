@@ -41,7 +41,7 @@ class RandomForestMSE:
         return X[indices], y[indices]
 
     def _get_random_features(self, n_features):
-        k = max(1, np.floor(n_features / 3))
+        k = max(1, int(np.floor(n_features / 3)))
         feature_indices = np.random.choice(n_features, k, replace=False)
         return feature_indices
 
@@ -76,7 +76,12 @@ class RandomForestMSE:
             trace = validation
 
         if trace:
-            history = ConvergenceHistory()
+            history: ConvergenceHistory = {
+                "train": [],
+                "val": None
+            }
+            if validation:
+                history['val'] = []
 
         n_features = X.shape[1]
 
@@ -92,12 +97,12 @@ class RandomForestMSE:
             if trace:
                 y_pred_train = self.predict(X)
                 train_loss = rmsle(y, y_pred_train)
-                history.train.append(train_loss)
+                history['train'].append(train_loss)
 
                 if validation:
                     y_pred_val = self.predict(X_val)
-                    val_loss = rmsle(y, y_pred_val)
-                    history.val.append(val_loss)
+                    val_loss = rmsle(y_val, y_pred_val)
+                    history['val'].append(val_loss)
 
                 if patience is not None:
                     if whether_to_stop(history, patience):
