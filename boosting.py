@@ -7,7 +7,7 @@ import numpy as np
 import numpy.typing as npt
 from sklearn.tree import DecisionTreeRegressor
 
-from .utils import ConvergenceHistory
+from .utils import ConvergenceHistory, rmsle, whether_to_stop
 
 
 class GradientBoostingMSE:
@@ -38,6 +38,14 @@ class GradientBoostingMSE:
         self.forest = [
             DecisionTreeRegressor(**tree_params) for _ in range(n_estimators)
         ]
+        self._indices = []
+        self._is_fitted = False
+        self._n_fitted_estimators = 0
+
+    def _get_random_features(self, n_features):
+        k = max(1, int(np.floor(n_features / 3)))
+        feature_indices = np.random.choice(n_features, k, replace=False)
+        return feature_indices
 
     def fit(
         self,
@@ -62,8 +70,54 @@ class GradientBoostingMSE:
         Returns:
             ConvergenceHistory | None: Instance of `ConvergenceHistory` if `trace=True` or if validation data is provided.
         """
-        
-        ...
+        validation = None
+        if (X_val is not None and y_val is not None):
+            validation = True
+
+        if trace is None:
+            trace = validation
+
+        if trace:
+            history: ConvergenceHistory = {
+                "train": [],
+                "val": None
+            }
+            if validation:
+                history['val'] = []
+
+        n_samples, n_features = X.shape
+        current_predictions = np.full(n_samples, 0.0)
+
+        for i in range(self.n_estimators):
+
+            residuals = y - current_predictions
+
+            feature_indices = self._get_random_features(n_features)
+            self._indices.append(feature_indices)
+            self.forest[i].fit(X[:, feature_indices],
+                               residuals)
+            self._n_fitted_estimators += 1
+            predictions = self.forest[i].predict(X[:, feature_indices])
+            current_predictions += self.learning_rate * predictions
+
+            if trace:
+                y_pred_train = self.predict(X)
+                train_loss = rmsle(y, y_pred_train)
+                history['train'].append(train_loss)
+
+                if validation:
+                    y_pred_val = self.predict(X_val)
+                    val_loss = rmsle(y_val, y_pred_val)
+                    history['val'].append(val_loss)
+
+                if patience is not None:
+                    if whether_to_stop(history, patience):
+                        self.n_estimators = self._n_fitted_estimators
+                        break
+
+        self._is_fitted = True
+        if trace:
+            return history
 
     def predict(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
@@ -77,8 +131,17 @@ class GradientBoostingMSE:
         Returns:
             npt.NDArray[np.float64]: Predicted values, array of shape (n_objects,).
         """
-        
-        ...
+        predictions = []
+        if not self._is_fitted:
+            n_estimators = self._n_fitted_estimators
+        else:
+            n_estimators = self.n_estimators
+
+        for i in range(n_estimators):
+            yi_pred = self.forest[i].predict(X[:, self._indices[i]])
+            predictions.append(yi_pred)
+
+        return np.mean(np.array(predictions), axis=0)
 
     def dump(self, dirpath: str) -> None:
         """
