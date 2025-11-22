@@ -38,7 +38,6 @@ class GradientBoostingMSE:
         self.forest = [
             DecisionTreeRegressor(**tree_params) for _ in range(n_estimators)
         ]
-        self._indices = []
         self._is_fitted = False
         self._n_fitted_estimators = 0
 
@@ -85,19 +84,17 @@ class GradientBoostingMSE:
             if validation:
                 history['val'] = []
 
-        n_samples, n_features = X.shape
-        current_predictions = np.full(n_samples, 0.0)
+        n_samples = X.shape[0]
+        self.const_prediction = np.mean(y)
+        current_predictions = np.full(n_samples, self.const_prediction)
 
         for i in range(self.n_estimators):
 
             residuals = y - current_predictions
 
-            feature_indices = self._get_random_features(n_features)
-            self._indices.append(feature_indices)
-            self.forest[i].fit(X[:, feature_indices],
-                               residuals)
+            self.forest[i].fit(X, residuals)
             self._n_fitted_estimators += 1
-            predictions = self.forest[i].predict(X[:, feature_indices])
+            predictions = self.forest[i].predict(X)
             current_predictions += self.learning_rate * predictions
 
             if trace:
@@ -131,17 +128,18 @@ class GradientBoostingMSE:
         Returns:
             npt.NDArray[np.float64]: Predicted values, array of shape (n_objects,).
         """
-        predictions = []
         if not self._is_fitted:
             n_estimators = self._n_fitted_estimators
         else:
             n_estimators = self.n_estimators
 
-        for i in range(n_estimators):
-            yi_pred = self.forest[i].predict(X[:, self._indices[i]])
-            predictions.append(yi_pred)
+        predictions = np.full(X.shape[0], self.const_prediction)
 
-        return np.mean(np.array(predictions), axis=0)
+        for i in range(n_estimators):
+            yi_pred = self.forest[i].predict(X)
+            predictions += self.learning_rate * yi_pred
+
+        return predictions
 
     def dump(self, dirpath: str) -> None:
         """

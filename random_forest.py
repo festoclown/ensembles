@@ -32,7 +32,6 @@ class RandomForestMSE:
         self.forest = [
             DecisionTreeRegressor(**tree_params) for _ in range(n_estimators)
         ]
-        self._indices = []
         self._is_fitted = False
         self._n_fitted_estimators = 0
 
@@ -83,14 +82,10 @@ class RandomForestMSE:
             if validation:
                 history['val'] = []
 
-        n_features = X.shape[1]
-
         for i in range(self.n_estimators):
 
             X_bootstrap, y_bootstrap = self._get_bootstrap_sample(X, y)
-            feature_indices = self._get_random_features(n_features)
-            self._indices.append(feature_indices)
-            self.forest[i].fit(X_bootstrap[:, feature_indices],
+            self.forest[i].fit(X_bootstrap,
                                y_bootstrap)
             self._n_fitted_estimators += 1
 
@@ -132,7 +127,7 @@ class RandomForestMSE:
             n_estimators = self.n_estimators
 
         for i in range(n_estimators):
-            yi_pred = self.forest[i].predict(X[:, self._indices[i]])
+            yi_pred = self.forest[i].predict(X)
             predictions.append(yi_pred)
 
         return np.mean(np.array(predictions), axis=0)
