@@ -2,10 +2,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from sklearn.exceptions import NotFittedError
+from sklearn.tree import DecisionTreeRegressor
 import joblib
 import numpy as np
 import numpy.typing as npt
-from sklearn.tree import DecisionTreeRegressor
 
 from .utils import ConvergenceHistory, rmsle, whether_to_stop
 
@@ -39,12 +40,8 @@ class GradientBoostingMSE:
             DecisionTreeRegressor(**tree_params) for _ in range(n_estimators)
         ]
         self._is_fitted = False
+        self._fitting = False
         self._n_fitted_estimators = 0
-
-    def _get_random_features(self, n_features):
-        k = max(1, int(np.floor(n_features / 3)))
-        feature_indices = np.random.choice(n_features, k, replace=False)
-        return feature_indices
 
     def fit(
         self,
@@ -69,6 +66,7 @@ class GradientBoostingMSE:
         Returns:
             ConvergenceHistory | None: Instance of `ConvergenceHistory` if `trace=True` or if validation data is provided.
         """
+        self._fitting = True
         validation = None
         if (X_val is not None and y_val is not None):
             validation = True
@@ -111,7 +109,7 @@ class GradientBoostingMSE:
                     if whether_to_stop(history, patience):
                         self.n_estimators = self._n_fitted_estimators
                         break
-
+        self._fitting = False
         self._is_fitted = True
         if trace:
             return history
@@ -128,7 +126,10 @@ class GradientBoostingMSE:
         Returns:
             npt.NDArray[np.float64]: Predicted values, array of shape (n_objects,).
         """
-        if not self._is_fitted:
+        if not self._is_fitted and not self._fitting:
+            raise NotFittedError('Model is not fitted')
+
+        if self._fitting:
             n_estimators = self._n_fitted_estimators
         else:
             n_estimators = self.n_estimators
@@ -186,5 +187,6 @@ class GradientBoostingMSE:
             for i in range(params["n_estimators"])
         ]
         instance.const_prediction = params["const_prediction"]
-
+        instance._is_fitted = True
+        instance._fitting = False
         return instance

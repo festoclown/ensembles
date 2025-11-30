@@ -85,7 +85,7 @@ def whether_to_stop(convergence_history: ConvergenceHistory, patience: int) -> b
     else:
         losses = convergence_history['train']
 
-    last_n_losses = losses[-patience:]
+    last_n_losses = losses[-(patience + 1):]
     if min(last_n_losses) == last_n_losses[0]:
         return True
 
