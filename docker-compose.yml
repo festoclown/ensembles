@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./runs:/app/runs 
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - BASE_URL=http://backend:8000
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - backend
