@@ -1,8 +1,8 @@
 from pathlib import Path as FSPath
 
 import shutil
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Path
 import json
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Path
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -15,6 +15,12 @@ app = FastAPI()
 
 
 def get_runs_dir() -> FSPath:
+    """
+    Get path to runs directory
+
+    Returns:
+        FSPath: path to runs directory
+    """
     return FSPath.cwd() / "runs"
 
 
@@ -48,11 +54,18 @@ async def register_experiment(
 ):
     """
     Register a new experiment by saving its config and training data.
+
+    Args:
+        config (str): JSON string containing experiment configuration.
+        train_file (UploadFile): CSV file with training data.
+
+    Returns:
+        dict: Confirmation message or experiment metadata.
     """
     try:
         config_obj = ExperimentConfig.model_validate_json(config)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid config: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid config: {e}") from e
 
     runs_dir = get_runs_dir()
     runs_dir.mkdir(exist_ok=True)
@@ -66,11 +79,11 @@ async def register_experiment(
     experiment_dir.mkdir()
 
     train_path = experiment_dir / "train.csv"
-    with open(train_path, "wb") as f:
+    with open(train_path, "wb", encoding="utf-8") as f:
         shutil.copyfileobj(train_file.file, f)
 
     config_path = experiment_dir / "config.json"
-    with open(config_path, "w") as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         f.write(config_obj.model_dump_json(indent=2))
 
     return {"message":
@@ -79,6 +92,15 @@ async def register_experiment(
 
 @app.get("/experiment/{experiment_name}/config")
 async def get_experiment_config(experiment_name: str = Path(...)):
+    """
+    Get config of a given experiment.
+
+    Args:
+        experiment_name (str): Name of the experiment directory.
+
+    Returns:
+        dict: Content of config.json for the experiment.
+    """
     experiment_dir = get_runs_dir() / experiment_name
     if not experiment_dir.exists():
         raise HTTPException(status_code=404, detail="Experiment not found")
@@ -87,12 +109,21 @@ async def get_experiment_config(experiment_name: str = Path(...)):
     if not config_path.exists():
         raise HTTPException(status_code=404, detail="Config not found")
 
-    with open(config_path) as f:
+    with open(config_path, encoding="utf-8") as f:
         return json.load(f)
 
 
 @app.get("/needs_training")
 async def needs_training(experiment_name: str):
+    """
+    Check if model training is needed for the experiment.
+
+    Args:
+        experiment_name (str): Name of the experiment directory.
+
+    Returns:
+        dict: {"response": bool} indicating if model is not yet trained.
+    """
     experiment_dir = get_runs_dir() / experiment_name
     model_trained = (experiment_dir / "trees").exists()
     return {"response": not model_trained}
@@ -100,11 +131,20 @@ async def needs_training(experiment_name: str):
 
 @app.post("/train/")
 async def train_model(data: dict):
+    """
+    Train model for the specified experiment.
+
+    Args:
+        data (dict): Request payload containing "experiment_name".
+
+    Returns:
+        dict: Success message after model training and saving.
+    """
     experiment_name = data["experiment_name"]
     experiment_dir = get_runs_dir() / experiment_name
 
     df = pd.read_csv(experiment_dir / "train.csv")
-    with open(experiment_dir / "config.json") as f:
+    with open(experiment_dir / "config.json", encoding="utf-8") as f:
         config = json.load(f)
 
     numeric_df = df.select_dtypes(include=['number'])
@@ -150,11 +190,11 @@ async def train_model(data: dict):
     )
 
     model.dump(str(experiment_dir))
-    with open(experiment_dir / "convergence.json", "w") as f:
+    with open(experiment_dir / "convergence.json", "w", encoding="utf-8") as f:
 
         history_to_save = {
             "train": convergence_history["train"],
-            "val": convergence_history["val"] or [] 
+            "val": convergence_history["val"] or []
         }
         json.dump(history_to_save, f)
 
@@ -163,13 +203,23 @@ async def train_model(data: dict):
 
 @app.get("/convergence/{experiment_name}")
 async def get_convergence(experiment_name: str = Path(...)):
+    """
+    Get training convergence history for an experiment.
+
+    Args:
+        experiment_name (str): Name of the experiment with a trained model.
+        test_file (UploadFile): CSV file with test data.
+
+    Returns:
+        dict: Train and validation loss history.
+    """
     experiment_dir = get_runs_dir() / experiment_name
     convergence_path = experiment_dir / "convergence.json"
     if not convergence_path.exists():
         raise HTTPException(status_code=404,
                             detail="Convergence history not found")
 
-    with open(convergence_path) as f:
+    with open(convergence_path, encoding="utf-8") as f:
         data = json.load(f)
 
     return data
@@ -180,11 +230,21 @@ async def predict(
     experiment_name: str = Form(...),
     test_file: UploadFile = File(...)
 ):
+    """
+    Make predictions using trained model on uploaded CSV.
+
+    Args:
+        experiment_name (str): Name of the experiment with a trained model.
+        test_file (UploadFile): CSV file containing test data.
+
+    Returns:
+        dict: Model predictions for the test data.
+    """
     experiment_dir = get_runs_dir() / experiment_name
     if not (experiment_dir / "trees").exists():
         raise HTTPException(status_code=400, detail="Model not trained yet")
 
-    with open(experiment_dir / "config.json") as f:
+    with open(experiment_dir / "config.json", encoding="utf-8") as f:
         config = json.load(f)
 
     if config["ml_model"] == "Random Forest":

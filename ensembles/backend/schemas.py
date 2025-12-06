@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from pydantic import BaseModel
 from typing import Union, List, Optional
+from pydantic import BaseModel
 
 
 class ExistingExperimentsResponse(BaseModel):

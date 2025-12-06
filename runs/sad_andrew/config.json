@@ -1,8 +1,0 @@
-{
-  "name": "sad_andrew",
-  "ml_model": "Gradient Boosting",
-  "n_estimators": 200,
-  "max_depth": 6,
-  "max_features": "log2",
-  "target_column": "price"
-}

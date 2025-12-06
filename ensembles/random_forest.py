@@ -54,15 +54,28 @@ class RandomForestMSE:
         Train an ensemble of trees on the provided data.
 
         Args:
-            X (npt.NDArray[np.float64]): Objects features matrix, array of shape (n_objects, n_features).
-            y (npt.NDArray[np.float64]): Regression labels, array of shape (n_objects,).
-            X_val (npt.NDArray[np.float64] | None, optional): Validation set of objects, array of shape (n_val_objects, n_features). Defaults to None.
-            y_val (npt.NDArray[np.float64] | None, optional): Validation set of labels, array of shape (n_val_objects,). Defaults to None.
-            trace (bool | None, optional): Whether to calculate rmsle while training. True by default if validation data is provided. Defaults to None.
-            patience (int | None, optional): Number of training steps without decreasing the train loss (or validation if provided), after which to stop training. Defaults to None.
+            X (npt.NDArray[np.float64]):
+                Objects features matrix, array of shape (n_objects, n_features).
+            y (npt.NDArray[np.float64]):
+                Regression labels, array of shape (n_objects,).
+            X_val (npt.NDArray[np.float64] | None, optional):
+                Validation set of objects,
+                array of shape (n_val_objects, n_features).
+                Defaults to None.
+            y_val (npt.NDArray[np.float64] | None, optional):
+                Validation set of labels, array of shape (n_val_objects,).
+                Defaults to None.
+            trace (bool | None, optional):
+                Whether to calculate rmsle while training.
+                True by default if validation data is provided. Defaults to None.
+            patience (int | None, optional):
+                Number of training steps without decreasing the train loss
+                (or validation if provided), after which to stop training.
+                Defaults to None.
 
         Returns:
-            ConvergenceHistory | None: Instance of `ConvergenceHistory` if `trace=True` or if validation data is provided.
+            ConvergenceHistory | None: Instance of `ConvergenceHistory`
+                if `trace=True` or if validation data is provided.
         """
         self._fitting = True
         validation = None
@@ -106,6 +119,7 @@ class RandomForestMSE:
         self._is_fitted = True
         if trace:
             return history
+        return None
 
     def predict(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
@@ -114,7 +128,8 @@ class RandomForestMSE:
         All the trees make their own predictions which then are averaged.
 
         Args:
-            X (npt.NDArray[np.float64]): Objects' features matrix, array of shape (n_objects, n_features).
+            X (npt.NDArray[np.float64]):
+                Objects' features matrix, array of shape (n_objects, n_features).
 
         Returns:
             npt.NDArray[np.float64]: Predicted values, array of shape (n_objects,).

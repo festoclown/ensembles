@@ -1,8 +1,0 @@
-{
-  "name": "happy_fox",
-  "ml_model": "Random Forest",
-  "n_estimators": 100,
-  "max_depth": 15,
-  "max_features": "all",
-  "target_column": "price"
-}
